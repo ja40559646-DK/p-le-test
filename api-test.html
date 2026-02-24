@@ -2,77 +2,64 @@
 <html lang="da">
 <head>
     <meta charset="UTF-8">
-    <title>SDFI Guld-Test | Jupiter</title>
+    <title>SDFI Sti-Scanner</title>
     <style>
-        body { font-family: sans-serif; padding: 30px; background: #1a1a1a; color: #eee; }
-        .container { max-width: 750px; margin: 0 auto; background: #2d2d2d; padding: 25px; border-radius: 12px; border-top: 5px solid #f1c40f; }
-        #console { background: #000; border: 1px solid #444; padding: 15px; height: 350px; overflow-y: auto; font-family: monospace; color: #00ff00; margin: 20px 0; }
-        .btn { background: #f1c40f; color: #000; border: none; padding: 15px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1.1rem; }
+        body { font-family: monospace; background: #1a1a1a; color: #00ff00; padding: 20px; }
+        .log-line { margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .success { color: #fff; background: #27ae60; padding: 2px 5px; }
+        .fail { color: #e74c3c; }
+        button { background: #3498db; color: white; padding: 15px; border: none; cursor: pointer; width: 100%; font-weight: bold; }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <h2>SDFI Guld-Test (Jupiter WFS)</h2>
-    <p>Baseret på nyeste vejledning. Bruger Proxy: <br><small>https://calm-truth-fd59.ja40559646.workers.dev/</small></p>
-    
-    <button class="btn" onclick="runGuldTest()">KØR DOKUMENTERET TEST</button>
-    
-    <div id="console">Klar til at teste med de nyeste URL-parametre...</div>
-</div>
+    <h2>SDFI GATEWAY SCANNER</h2>
+    <button onclick="runScan()">START SCANNING</button>
+    <div id="output" style="margin-top: 20px;"></div>
 
 <script>
-    const MY_TOKEN = "16482bf85f4018a2952adcbccccd8c84";
-    const PROXY_URL = "https://calm-truth-fd59.ja40559646.workers.dev"; 
+    const TOKEN = "16482bf85f4018a2952adcbccccd8c84";
+    const PROXY = "https://calm-truth-fd59.ja40559646.workers.dev";
 
-    const consoleEl = document.getElementById('console');
-    function log(msg, color = "#00ff00") {
-        consoleEl.innerHTML += `<div>[${new Date().toLocaleTimeString()}] <span style="color: ${color}">${msg}</span></div>`;
-        consoleEl.scrollTop = consoleEl.scrollHeight;
+    async function testPath(path) {
+        const out = document.getElementById('output');
+        out.innerHTML += `<div class="log-line">Tester: ${path} ...</div>`;
+        
+        // Vi bruger et minimalt kald for at se om stien svarer
+        const url = `${PROXY}${path}?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetCapabilities`;
+        
+        try {
+            const resp = await fetch(url);
+            if (resp.status === 200) {
+                out.innerHTML += `<div class="log-line success">VINDING! Stien '${path}' virker!</div>`;
+                return true;
+            } else {
+                out.innerHTML += `<div class="log-line fail">Fejl ${resp.status} på ${path}</div>`;
+            }
+        } catch (e) {
+            out.innerHTML += `<div class="log-line fail">Netværksfejl</div>`;
+        }
+        return false;
     }
 
-    async function runGuldTest() {
-        consoleEl.innerHTML = '';
-        log("Henter data via officiel v1.0.0 sti...");
-
-        // GULDKLUMP 1: Den helt specifikke versionerede sti
-        const targetPath = "/geus_jupiter_wfs_v1_0_0";
+    async function runScan() {
+        document.getElementById('output').innerHTML = "Starter scan...<br>";
         
-        // GULDKLUMP 2: Præcis rækkefølge af parametre jf. GIS-vejledning
-        const params = new URLSearchParams({
-            token: MY_TOKEN,
-            SERVICE: "WFS",
-            VERSION: "1.1.0",
-            REQUEST: "GetFeature",
-            TYPENAME: "geus_jupiter_wfs:boring",
-            OUTPUTFORMAT: "application/json",
-            MAXFEATURES: "10",
-            // GULDKLUMP 3: BBOX skal have EPSG med for at undgå koordinat-forvirring
-            BBOX: "55.60,12.50,55.70,12.60,EPSG:4326" 
-        });
+        // De her 4 er de mest brugte gateways i det nye system
+        const paths = [
+            "/geus_jupiter_wfs",
+            "/jupiter",
+            "/geus_jupiter",
+            "/wfs/geus_jupiter"
+        ];
 
-        const finalUrl = `${PROXY_URL}${targetPath}?${params.toString()}`;
-
-        try {
-            log("Sender kald til: " + targetPath);
-            const response = await fetch(finalUrl);
-            log("Status: " + response.status);
-
-            const data = await response.json();
-            
-            if (response.ok && data.features) {
-                log("SUCCES! Prikkerne er fundet.", "#2ecc71");
-                log("Antal: " + data.features.length);
-                log("DGU-eksempel: " + data.features[0].properties.dgunr);
-            } else {
-                log("Fejl fra server: " + (data.message || "Ukendt fejl"), "#e74c3c");
-                console.log("Full error:", data);
+        for (let p of paths) {
+            const found = await testPath(p);
+            if (found) {
+                out.innerHTML += `<h3><br>Brug denne sti i din kode: ${p}</h3>`;
+                break;
             }
-        } catch (err) {
-            log("SYSTEMFEJL: " + err.message, "#e74c3c");
         }
     }
 </script>
-
 </body>
 </html>

@@ -1,0 +1,54 @@
+<schema xmlns:ms="http://mapserver.gis.umn.edu/mapserver" xmlns:ogc="http://www.opengis.net/ogc" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml" targetNamespace="http://mapserver.gis.umn.edu/mapserver" elementFormDefault="qualified" version="0.1">
+<import namespace="http://www.opengis.net/gml" schemaLocation="http://schemas.opengis.net/gml/2.1.2/feature.xsd"/>
+<element name="jupiter_boringer_ws" type="ms:jupiter_boringer_wsType" substitutionGroup="gml:_Feature"/>
+<complexType name="jupiter_boringer_wsType">
+<complexContent>
+<extension base="gml:AbstractFeatureType">
+<sequence>
+<element name="msGeometry" type="gml:PointPropertyType" minOccurs="0" maxOccurs="1"/>
+<element name="dgunr" minOccurs="0" type="string"/>
+<element name="url" minOccurs="0" type="string"/>
+<element name="kode" minOccurs="0" type="string"/>
+<element name="kode_tekst" minOccurs="0" type="string"/>
+<element name="postnr" minOccurs="0" type="integer"/>
+<element name="boringsby" minOccurs="0" type="string"/>
+<element name="sted1" minOccurs="0" type="string"/>
+<element name="komnr" minOccurs="0" type="integer"/>
+<element name="kommunenavn" minOccurs="0" type="string"/>
+<element name="region" minOccurs="0" type="integer"/>
+<element name="region_tekst" minOccurs="0" type="string"/>
+<element name="dybde" minOccurs="0" type="string"/>
+<element name="dybde_num" minOccurs="0" type="double"/>
+<element name="dato" minOccurs="0" type="date"/>
+<element name="aar" minOccurs="0" type="string"/>
+<element name="aar_num" minOccurs="0" type="integer"/>
+<element name="formaal" minOccurs="0" type="string"/>
+<element name="formaal_tekst" minOccurs="0" type="string"/>
+<element name="anvendelse" minOccurs="0" type="string"/>
+<element name="anvendelse_tekst" minOccurs="0" type="string"/>
+<element name="formanv" minOccurs="0" type="string"/>
+<element name="formanv_tekst" minOccurs="0" type="string"/>
+<element name="id" minOccurs="0" type="integer"/>
+<element name="borid" minOccurs="0" type="integer"/>
+<element name="broendborer" minOccurs="0" type="string"/>
+<element name="cyklogram" minOccurs="0" type="string"/>
+<element name="dataejer" minOccurs="0" type="string"/>
+<element name="anlaegid" minOccurs="0" type="integer"/>
+<element name="anlaegnr" minOccurs="0" type="string"/>
+<element name="anlaegsnavn" minOccurs="0" type="string"/>
+<element name="journr" minOccurs="0" type="string"/>
+<element name="virktyp" minOccurs="0" type="string"/>
+<element name="virktypt" minOccurs="0" type="string"/>
+<element name="hovedtype" minOccurs="0" type="string"/>
+<element name="xutm" minOccurs="0" type="double"/>
+<element name="yutm" minOccurs="0" type="double"/>
+<element name="terraen_kote" minOccurs="0" type="string"/>
+<element name="dgunr_org" minOccurs="0" type="string"/>
+<element name="txt_search" minOccurs="0" type="string"/>
+<element name="symbol_outline_rgb" minOccurs="0" type="string"/>
+<element name="rgb" minOccurs="0" type="string"/>
+</sequence>
+</extension>
+</complexContent>
+</complexType>
+</schema>

@@ -1,73 +1,43 @@
 <!DOCTYPE html>
-<html lang="da">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>GEUS Test: Endelig Verificering</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .card { background: white; padding: 20px; border: 1px solid #ddd; max-width: 800px; margin: auto; }
-        #log { background: #222; color: #0f0; padding: 15px; border-radius: 4px; overflow: auto; max-height: 400px; }
-        .status { font-weight: bold; margin: 10px 0; padding: 10px; border-radius: 4px; }
-        .waiting { background: #eee; }
-        .success { background: #d4edda; color: #155724; }
-    </style>
+    <title>Hul Igennem Test</title>
 </head>
 <body>
+    <button onclick="checkJupiter()">TEST FORBINDELSE TIL JUPITER</button>
+    <pre id="resultat">Venter på klik...</pre>
 
-<div class="card">
-    <h2>Jupiter WFS via AllOrigins Proxy</h2>
-    <p>Tester adgang til jordlag for boring 222. 95 (ID: 443585)</p>
-    
-    <button id="btnTest" style="padding: 10px 20px; cursor: pointer;">START TEST</button>
-    <div id="status" class="status">Klar</div>
-    <pre id="log">Logbeskeder vises her...</pre>
-</div>
+    <script>
+        // Vi bruger den funktion, som din browser skal kalde, når data kommer retur
+        window.modtagData = function(data) {
+            console.log("Data modtaget!", data);
+            document.getElementById('resultat').innerText = "HUL IGENNEM! Her er rådata:\n\n" + JSON.stringify(data, null, 2);
+        };
 
-<script>
-    const TOKEN = "16482bf85f4018a2952adcbccccd8c84";
-    // Vi bruger det interne ID for 222. 95 for at undgå problemer med tekst-strenge
-    const BORID = "443585"; 
+        function checkJupiter() {
+            const token = "16482bf85f4018a2952adcbccccd8c84";
+            const output = document.getElementById('resultat');
+            output.innerText = "Prøver at hente data...";
 
-    document.getElementById('btnTest').addEventListener('click', async function() {
-        const log = document.getElementById('log');
-        const status = document.getElementById('status');
-        
-        status.innerText = "Arbejder...";
-        status.className = "status waiting";
-        log.innerText = "Henter via AllOrigins proxy...";
+            // Vi bygger URL'en præcis som din adressesøger, men peger på Jupiter boringer
+            const url = "https://api.dataforsyningen.dk/geus_jupiter_wfs" +
+                        "?token=" + token +
+                        "&SERVICE=WFS" +
+                        "&VERSION=1.1.0" +
+                        "&REQUEST=GetFeature" +
+                        "&TYPENAME=geus_jupiter_wfs:boring" +
+                        "&MAXFEATURES=1" + 
+                        "&OUTPUTFORMAT=json" +
+                        "&format_options=callback:modtagData"; // Dette fortæller serveren at bruge JSONP
 
-        // Den rå GEUS URL
-        const geusUrl = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:jordlag&OUTPUTFORMAT=json&CQL_FILTER=borid=${BORID}`;
-        
-        // Vi bruger AllOrigins som mellemmand
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(geusUrl)}`;
-
-        try {
-            const response = await fetch(proxyUrl);
-            if (!response.ok) throw new Error("Netværksfejl");
-            
-            const wrapper = await response.json();
-            // AllOrigins pakker svaret ind i et 'contents' felt
-            const data = JSON.parse(wrapper.contents);
-
-            if (data.features && data.features.length > 0) {
-                status.innerText = "SUCCES!";
-                status.className = "status success";
-                log.innerText = "Fandt " + data.features.length + " jordlag:\n\n";
-                
-                data.features.forEach(f => {
-                    log.innerText += `Lag: ${f.properties.topdybde}-${f.properties.bunddybde}m: ${f.properties.bjergart}\n`;
-                });
-            } else {
-                status.innerText = "Ingen data fundet";
-                log.innerText = "Serveren svarede, men listen var tom.";
-            }
-        } catch (err) {
-            status.innerText = "FEJL";
-            log.innerText = "Kunne ikke hente data via proxy.\nDetaljer: " + err.message;
+            const script = document.createElement('script');
+            script.src = url;
+            script.onerror = function() {
+                output.innerText = "FEJL: Kunne ikke indlæse data. Tjek om din token er aktiv til Jupiter-data.";
+            };
+            document.body.appendChild(script);
         }
-    });
-</script>
-
+    </script>
 </body>
 </html>

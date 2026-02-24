@@ -2,43 +2,39 @@
 <html lang="da">
 <head>
     <meta charset="UTF-8">
-    <title>SDFI Token Final Test</title>
+    <title>Alternative Data Test</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #eee; }
-        #log { background: #000; color: #0f0; padding: 20px; font-family: monospace; white-space: pre-wrap; border-radius: 5px; }
+        body { font-family: sans-serif; padding: 20px; background: #2c3e50; color: white; }
+        #log { background: #000; color: #0f0; padding: 20px; font-family: monospace; border-radius: 5px; min-height: 200px; }
     </style>
 </head>
 <body>
-    <h2>SDFI Simpel Token Validering</h2>
-    <button onclick="testToken()" style="padding: 15px; background: #2980b9; color: white; border: none; cursor: pointer;">TEST TOKEN NU</button>
-    <div id="log">Venter...</div>
+    <h2>Test: Alternativ Geodata-bro</h2>
+    <button onclick="testAlt()" style="padding: 15px; cursor: pointer; font-weight: bold;">HENT PRØVE-DATA</button>
+    <pre id="log">Venter på klik...</pre>
 
 <script>
-    const TOKEN = "16482bf85f4018a2952adcbccccd8c84";
-    const logEl = document.getElementById('log');
+    async function testAlt() {
+        const log = document.getElementById('log');
+        log.innerText = "Forsøger at hente Jupiter-data via Miljøportalens åbne API...\n";
 
-    async function testToken() {
-        logEl.innerText = "Tester token...\n";
-        
-        // Vi tester en simpel koordinat-søgning (omkring Aarhus)
-        // Dette endpoint kræver typisk token og er meget stabilt.
-        const targetUrl = `https://api.dataforsyningen.dk/vejstykker?token=${TOKEN}&x=10.21&y=56.15`;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        // Vi prøver at hente Jupiter boringer via Danmarks Miljøportals åbne REST API
+        // Dette endpoint kræver ofte ikke token til simple opslag og tillader CORS!
+        const url = `https://kort.miljoeportal.dk/gis/rest/services/Grundvand/Jupiter/MapServer/0/query?where=1%3D1&outFields=DGU_NR&returnGeometry=true&f=pjson&resultRecordCount=5`;
 
         try {
-            const resp = await fetch(proxyUrl);
-            const text = await resp.text();
+            const resp = await fetch(url);
+            const data = await resp.json();
             
-            logEl.innerText += "Status fra SDFI: " + resp.status + "\n";
-            logEl.innerText += "Svar: " + text.substring(0, 500);
-            
-            if (resp.status === 401) {
-                logEl.innerText += "\n\nDOM: Din TOKEN er ugyldig eller ikke aktiv.";
-            } else if (resp.status === 200) {
-                logEl.innerText += "\n\nDOM: DIN TOKEN VIRKER! Fejlen ligger i WFS-opsætningen.";
+            if (data.features) {
+                log.innerText += "SUCCES! Vi har fundet en åben dør.\n";
+                log.innerText += "Fandt DGU-nr: " + data.features[0].attributes.DGU_NR;
+                console.log(data);
+            } else {
+                log.innerText += "Forbindelse ok, men ingen data modtaget.";
             }
         } catch (err) {
-            logEl.innerText += "FEJL: " + err.message;
+            log.innerText += "FEJL: Denne vej er også lukket: " + err.message;
         }
     }
 </script>

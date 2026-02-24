@@ -2,27 +2,23 @@
 <html lang="da">
 <head>
     <meta charset="UTF-8">
-    <title>SDFI via Proxy Test | SUCCESS</title>
+    <title>SDFI Guld-Test | Jupiter</title>
     <style>
         body { font-family: sans-serif; padding: 30px; background: #1a1a1a; color: #eee; }
-        .container { max-width: 700px; margin: 0 auto; background: #2d2d2d; padding: 25px; border-radius: 12px; border-top: 4px solid #27ae60; }
-        #console { 
-            background: #000; border: 1px solid #444; padding: 15px; border-radius: 6px; 
-            height: 300px; overflow-y: auto; font-family: monospace; color: #00ff00; margin: 20px 0;
-        }
-        .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1.1rem; }
-        .btn:hover { background: #219150; }
+        .container { max-width: 750px; margin: 0 auto; background: #2d2d2d; padding: 25px; border-radius: 12px; border-top: 5px solid #f1c40f; }
+        #console { background: #000; border: 1px solid #444; padding: 15px; height: 350px; overflow-y: auto; font-family: monospace; color: #00ff00; margin: 20px 0; }
+        .btn { background: #f1c40f; color: #000; border: none; padding: 15px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1.1rem; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>SDFI via Cloudflare Proxy</h2>
-    <p>Proxy-URL: <code style="color: #3498db;">https://calm-truth-fd59.ja40559646.workers.dev/</code></p>
+    <h2>SDFI Guld-Test (Jupiter WFS)</h2>
+    <p>Baseret på nyeste vejledning. Bruger Proxy: <br><small>https://calm-truth-fd59.ja40559646.workers.dev/</small></p>
     
-    <button class="btn" onclick="startTest()">KØR FORBINDELSES-TEST</button>
+    <button class="btn" onclick="runGuldTest()">KØR DOKUMENTERET TEST</button>
     
-    <div id="console">Tryk på knappen for at teste din nye bro...</div>
+    <div id="console">Klar til at teste med de nyeste URL-parametre...</div>
 </div>
 
 <script>
@@ -30,41 +26,50 @@
     const PROXY_URL = "https://calm-truth-fd59.ja40559646.workers.dev"; 
 
     const consoleEl = document.getElementById('console');
-
     function log(msg, color = "#00ff00") {
         consoleEl.innerHTML += `<div>[${new Date().toLocaleTimeString()}] <span style="color: ${color}">${msg}</span></div>`;
         consoleEl.scrollTop = consoleEl.scrollHeight;
     }
 
-    async function startTest() {
+    async function runGuldTest() {
         consoleEl.innerHTML = '';
-        log("Kontakter din Cloudflare Worker...");
+        log("Henter data via officiel v1.0.0 sti...");
 
-        // Vi bygger URL'en til Jupiter WFS via din proxy
-        const targetPath = "/geus_jupiter_wfs";
-        const params = `?token=${MY_TOKEN}&service=WFS&version=1.1.0&request=GetFeature&typeName=geus_jupiter_wfs:boring&outputFormat=json&maxFeatures=5&BBOX=12.5,55.6,12.6,55.7,EPSG:4326`;
+        // GULDKLUMP 1: Den helt specifikke versionerede sti
+        const targetPath = "/geus_jupiter_wfs_v1_0_0";
         
-        const finalUrl = PROXY_URL + targetPath + params;
+        // GULDKLUMP 2: Præcis rækkefølge af parametre jf. GIS-vejledning
+        const params = new URLSearchParams({
+            token: MY_TOKEN,
+            SERVICE: "WFS",
+            VERSION: "1.1.0",
+            REQUEST: "GetFeature",
+            TYPENAME: "geus_jupiter_wfs:boring",
+            OUTPUTFORMAT: "application/json",
+            MAXFEATURES: "10",
+            // GULDKLUMP 3: BBOX skal have EPSG med for at undgå koordinat-forvirring
+            BBOX: "55.60,12.50,55.70,12.60,EPSG:4326" 
+        });
+
+        const finalUrl = `${PROXY_URL}${targetPath}?${params.toString()}`;
 
         try {
+            log("Sender kald til: " + targetPath);
             const response = await fetch(finalUrl);
-            log("Worker svarede. HTTP Status: " + response.status);
-
-            if (!response.ok) {
-                const errText = await response.text();
-                log("SDFI afviste kaldet gennem proxyen: " + errText, "#e74c3c");
-                return;
-            }
+            log("Status: " + response.status);
 
             const data = await response.json();
-            if (data.features) {
-                log("FEJRING! Vi er igennem muren.", "#2ecc71");
-                log("Data modtaget: " + data.features.length + " boringer fundet i test-området.");
-                log("Første DGU-nr: " + data.features[0].properties.dgunr);
+            
+            if (response.ok && data.features) {
+                log("SUCCES! Prikkerne er fundet.", "#2ecc71");
+                log("Antal: " + data.features.length);
+                log("DGU-eksempel: " + data.features[0].properties.dgunr);
+            } else {
+                log("Fejl fra server: " + (data.message || "Ukendt fejl"), "#e74c3c");
+                console.log("Full error:", data);
             }
         } catch (err) {
-            log("FEJL: Kunne ikke forbinde til din Worker. Tjek om den er 'Deployed'.", "#e74c3c");
-            log(err.message, "#e74c3c");
+            log("SYSTEMFEJL: " + err.message, "#e74c3c");
         }
     }
 </script>

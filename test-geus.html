@@ -2,79 +2,77 @@
 <html lang="da">
 <head>
     <meta charset="UTF-8">
-    <title>GEUS Adgangs-Test</title>
+    <title>GEUS Verificering: 222. 95</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; line-height: 1.6; max-width: 800px; margin: 0 auto; }
-        .test-card { border: 1px solid #ccc; padding: 15px; border-radius: 8px; background: #f9f9f9; }
-        .status-badge { padding: 5px 10px; border-radius: 4px; font-weight: bold; }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
-        pre { background: #eee; padding: 10px; overflow-x: auto; border-radius: 4px; font-size: 12px; }
-        input { padding: 8px; width: 150px; }
-        button { padding: 8px 15px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background: #f0f2f5; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 1000px; margin: auto; }
+        .status { padding: 10px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; }
+        .success { background: #dcfce7; color: #166534; border: 1px solid #166534; }
+        .waiting { background: #dbeafe; color: #1e40af; border: 1px solid #1e40af; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; color: #4b4b4b; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 4px; font-size: 11px; overflow-x: auto; max-height: 300px; }
     </style>
 </head>
 <body>
 
-    <h1>Jupiter API Forbindelsestest</h1>
-    <p>Denne fil tester adgangen til GEUS' database for at se, om vi kan hente detaljer om en specifik boring.</p>
+<div class="card">
+    <h2>Jupiter Data Test: Boring 222. 95</h2>
+    <p>Vi tester nu direkte mod <strong>geus_jupiter_wfs:jordlag</strong>.</p>
+    
+    <button onclick="hentJordlag()" style="padding: 12px 24px; cursor: pointer; background: #3498db; color: white; border: none; border-radius: 6px; font-weight: bold;">HENT DATA FOR 222. 95</button>
 
-    <div class="test-card">
-        <label>Indtast DGU nr. (f.eks. 113. 147):</label><br><br>
-        <input type="text" id="dguInput" value="113. 147">
-        <button onclick="testForbindelse()">Test Forbindelse</button>
-        
-        <p>Status: <span id="status" class="status-badge">Klar</span></p>
+    <div id="statusBox" class="status" style="display:none;"></div>
+
+    <div id="resultTable" style="display:none;">
+        <h3>Jordlagstabel</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fra (m)</th>
+                    <th>Til (m)</th>
+                    <th>Beskrivelse (Litologi)</th>
+                    <th>Farve</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
     </div>
 
-    <h3>Data fra GEUS:</h3>
-    <pre id="output">Resultatet vil blive vist her...</pre>
+    <h3>Rå JSON Respons:</h3>
+    <pre id="jsonOutput">Klik på knappen for at starte testen...</pre>
+</div>
 
-    <hr>
-    <h4>Hvad tester vi?</h4>
-    <ul>
-        <li><strong>Forbindelse:</strong> Kan vi nå GEUS' servere fra din browser?</li>
-        <li><strong>Data-format:</strong> Modtager vi JSON-data, som vi kan arbejde med?</li>
-        <li><strong>Indhold:</strong> Indeholder svaret information om f.eks. dybde eller vandstand?</li>
-    </ul>
+<script>
+    const TOKEN = "16482bf85f4018a2952adcbccccd8c84";
+    const DGU = "222. 95";
 
-    <script>
-        async function testForbindelse() {
-            const dgu = document.getElementById('dguInput').value.trim();
-            const statusEl = document.getElementById('status');
-            const outputEl = document.getElementById('output');
+    async function hentJordlag() {
+        const statusBox = document.getElementById('statusBox');
+        const jsonOutput = document.getElementById('jsonOutput');
+        const tableBody = document.getElementById('tableBody');
+        const resultTable = document.getElementById('resultTable');
 
-            statusEl.innerText = "Forbinder...";
-            statusEl.className = "status-badge";
-            outputEl.innerText = "Henter data...";
+        statusBox.style.display = "block";
+        statusBox.className = "status waiting";
+        statusBox.innerText = "Henter data fra GEUS...";
 
-            // Vi bruger GEUS' officielle søge-API (REST)
-            // Det kræver ikke SOAP/WSDL login og er derfor perfekt til denne test
-            const url = `https://data.geus.dk/JupiterSearch/api/v1/borehole/${encodeURIComponent(dgu)}`;
+        // Bemærk: Vi bruger CQL_FILTER med dgunr='222. 95'
+        // Vi skal bruge %20 for mellemrummet i "222. 95"
+        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:jordlag&OUTPUTFORMAT=json&CQL_FILTER=dgunr='${encodeURIComponent(DGU)}'`;
 
-            try {
-                const response = await fetch(url);
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+
+            jsonOutput.innerText = JSON.stringify(data, null, 2);
+
+            if (data.features && data.features.length > 0) {
+                statusBox.className = "status success";
+                statusBox.innerText = `Succes! Fandt ${data.features.length} jordlag for boring ${DGU}`;
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    statusEl.innerText = "FORBUNDET";
-                    statusEl.className = "status-badge success";
-                    
-                    // Vis data pænt
-                    outputEl.innerText = JSON.stringify(data, null, 2);
-                    console.log("Succes!", data);
-                } else {
-                    throw new Error(`Serveren svarede med fejlkode: ${response.status}`);
-                }
-            } catch (error) {
-                statusEl.innerText = "FEJL";
-                statusEl.className = "status-badge error";
-                outputEl.innerText = "Fejlbesked: " + error.message + 
-                    "\n\nBemærk: Hvis du ser en 'CORS' fejl i konsollen, betyder det at GEUS blokerer direkte browser-kald. " +
-                    "I så fald skal vi bruge en lille proxy-løsning.";
-                console.error("Test fejlede:", error);
-            }
-        }
-    </script>
-</body>
-</html>
+                // Sorter lagene efter dybde (top -> bund)
+                const sortedLayers = data.features.sort((a, b) => a.properties.topdybde - b.properties.topdybde);
+                
+                tableBody.innerHTML

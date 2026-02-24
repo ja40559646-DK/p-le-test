@@ -3,87 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Borings-Analysator 2026 | Fremtidssikret</title>
-    
+    <title>Boring-Søger: Jupiter Checkpoint</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
-        :root { --primary: #1a252f; --accent: #3498db; --success: #27ae60; --error: #e74c3c; }
-        body { display: flex; height: 100vh; margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; }
-        
-        #sidebar { 
-            width: 400px; padding: 25px; background: white; 
-            border-right: 1px solid #dcdde1; box-shadow: 5px 0 15px rgba(0,0,0,0.05);
-            display: flex; flex-direction: column; z-index: 1000;
-        }
-
+        body { display: flex; height: 100vh; margin: 0; font-family: 'Segoe UI', sans-serif; background: #eef2f3; }
+        #sidebar { width: 380px; padding: 20px; background: #ffffff; border-right: 1px solid #ccc; z-index: 1000; overflow-y: auto; }
         #map { flex-grow: 1; }
-
-        .card { 
-            background: #fff; border: 1px solid #edeff2; 
-            padding: 15px; border-radius: 12px; margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        }
-
-        h2 { margin-top: 0; color: var(--primary); font-size: 1.5rem; letter-spacing: -0.5px; }
-        label { display: block; margin-bottom: 8px; font-weight: 600; color: #4b4b4b; font-size: 0.9rem; }
-
-        input[type="text"] { 
-            width: 100%; padding: 12px; border: 2px solid #edeff2; 
-            border-radius: 8px; box-sizing: border-box; font-size: 1rem;
-            transition: border-color 0.2s;
-        }
-        input[type="text"]:focus { border-color: var(--accent); outline: none; }
-
-        .suggestions-list { 
-            background: white; border: 1px solid #ddd; border-radius: 8px;
-            max-height: 250px; overflow-y: auto; position: absolute; width: calc(100% - 30px); z-index: 2000;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1); margin-top: 5px;
-        }
-        .suggestion-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f1f2f6; font-size: 0.95rem; }
-        .suggestion-item:last-child { border-bottom: none; }
-        .suggestion-item:hover { background: #f8f9fa; color: var(--accent); }
-
-        .stats-box { text-align: center; padding: 15px; border-radius: 10px; font-weight: bold; margin-bottom: 15px; font-size: 0.95rem; }
-        .ready { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-        .searching { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
-        .error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-
-        .btn-main { 
-            background: var(--primary); color: white; border: none; 
-            padding: 16px; width: 100%; border-radius: 8px; 
-            font-size: 1rem; font-weight: bold; cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn-main:hover { background: #2c3e50; transform: translateY(-1px); }
-        .btn-main:disabled { background: #cbd5e0; cursor: not-allowed; transform: none; }
-
-        #coords-display { font-family: 'Courier New', monospace; font-size: 0.8rem; color: #94a3b8; margin-top: 8px; }
+        .control-group { margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 8px; border: 1px solid #ddd; }
+        .autocomplete-container { position: relative; }
+        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .suggestions-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; z-index: 2000; max-height: 200px; overflow-y: auto; }
+        .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 0.9em; }
+        .suggestion-item:hover { background: #3498db; color: white; }
+        .stats { font-weight: bold; margin: 10px 0; color: #2c3e50; }
+        .btn-fetch { background: #27ae60; color: white; border: none; padding: 12px; width: 100%; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        .btn-fetch:disabled { background: #bdc3c7; }
+        #log-point-info { font-size: 0.8em; background: #fffde7; padding: 8px; border: 1px solid #fff59d; margin-top: 10px; border-radius: 4px; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>Borings-Atlas 2026</h2>
-    
-    <div class="card">
-        <label>1. Søg lokation (Ny API)</label>
-        <div style="position: relative;">
-            <input type="text" id="addressInput" placeholder="Vejnavn, husnummer, by..." autocomplete="off">
+    <h2>Projekt Opsætning</h2>
+    <div class="control-group">
+        <h3>1. Find Lokation</h3>
+        <div class="autocomplete-container">
+            <input type="text" id="addressInput" placeholder="Søg adresse..." autocomplete="off">
             <div id="suggestions" class="suggestions-list"></div>
         </div>
-        <div id="coords-display">GPS: Afventer lokation...</div>
+        <div id="log-point-info">
+            <strong>Projekt-Pin:</strong> <span id="pinCoords">Ikke sat</span><br>
+            <small>(Træk i rød pin for at flytte punkt)</small>
+        </div>
     </div>
-
-    <div class="card">
-        <label>2. Søgeradius: <span id="radiusText">2000</span> meter</label>
+    <div class="control-group">
+        <h3>2. Radius & Boringer</h3>
+        <label>Søgeområde: <strong id="radiusVal">2000</strong> m</label>
         <input type="range" id="radiusSlider" min="100" max="10000" step="100" value="2000">
+        <div id="counter" class="stats">Klar til søgning</div>
     </div>
-
-    <div id="statusBox" class="stats-box">Status: Klar til brug</div>
-
-    <div style="margin-top: auto;">
-        <button id="nextStepBtn" class="btn-main" disabled>LOG PROJEKT-PUNKT</button>
+    <div class="control-group">
+        <button id="fetchDataBtn" class="btn-fetch" disabled>Gå til borings-oversigt</button>
     </div>
 </div>
 
@@ -91,41 +51,35 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // DIN TOKEN - Verificeret
-    const TOKEN = "16482bf85f4018a2952adcbccccd8c84"; 
-
     let map, projectPin, searchCircle, boreholeLayer;
-    let currentData = { lat: null, lng: null, radius: 2000, address: "" };
+    let currentCenter = null;
 
-    // Initialiser kort med moderne fliser
-    map = L.map('map', { zoomControl: false }).setView([56.12, 10.61], 7);
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
-    
+    map = L.map('map').setView([56.12, 10.61], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     boreholeLayer = L.layerGroup().addTo(map);
 
     const addrInput = document.getElementById('addressInput');
     const suggestionsEl = document.getElementById('suggestions');
-    const statusBox = document.getElementById('statusBox');
-    const nextBtn = document.getElementById('nextStepBtn');
+    const radiusSlider = document.getElementById('radiusSlider');
+    const counterEl = document.getElementById('counter');
+    const fetchBtn = document.getElementById('fetchDataBtn');
 
-    // --- NY ADRESSE-SØGNING (Dataforsyningen Autocomplete v2) ---
+    // --- 1. DAWA Adresser ---
     addrInput.addEventListener('input', async (e) => {
-        const q = e.target.value;
-        if (q.length < 3) { suggestionsEl.innerHTML = ''; return; }
-        
+        const query = e.target.value;
+        if (query.length < 3) return;
         try {
-            const resp = await fetch(`https://api.dataforsyningen.dk/adresser/autocomplete?q=${encodeURIComponent(q)}`);
+            const resp = await fetch(`https://api.dataforsyningen.dk/adresser/autocomplete?q=${encodeURIComponent(query)}`);
             const data = await resp.json();
             suggestionsEl.innerHTML = '';
             data.forEach(item => {
-                const d = document.createElement('div');
-                d.className = 'suggestion-item';
-                d.innerText = item.tekst;
-                d.onclick = () => selectAddress(item);
-                suggestionsEl.appendChild(d);
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.innerText = item.tekst;
+                div.onclick = () => selectAddress(item);
+                suggestionsEl.appendChild(div);
             });
-        } catch (err) { console.error("Adresse-API fejl"); }
+        } catch (err) { console.error("DAWA fejl"); }
     });
 
     async function selectAddress(item) {
@@ -135,103 +89,97 @@
         const data = await resp.json();
         const lat = data.adgangsadresse.adgangspunkt.koordinater[1];
         const lng = data.adgangsadresse.adgangspunkt.koordinater[0];
-        currentData.address = item.tekst;
-        initProjectPoint(lat, lng);
+        setupProject(lat, lng, item.tekst);
     }
 
-    function initProjectPoint(lat, lng) {
-        currentData.lat = lat;
-        currentData.lng = lng;
+    // --- 2. Projekt-Pin ---
+    function setupProject(lat, lng, label) {
+        currentCenter = [lat, lng];
         if (projectPin) map.removeLayer(projectPin);
         if (searchCircle) map.removeLayer(searchCircle);
 
-        projectPin = L.marker([lat, lng], { draggable: true }).addTo(map);
-        searchCircle = L.circle([lat, lng], { radius: currentData.radius, color: '#3498db', weight: 2, fillOpacity: 0.1 }).addTo(map);
-        map.setView([lat, lng], 14);
-        
-        updateUI();
-
-        projectPin.on('dragend', (e) => {
-            const pos = e.target.getLatLng();
-            currentData.lat = pos.lat;
-            currentData.lng = pos.lng;
-            searchCircle.setLatLng(pos);
-            updateUI();
+        const redIcon = new L.Icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
         });
-    }
 
-    function updateUI() {
-        document.getElementById('coords-display').innerText = `GPS: ${currentData.lat.toFixed(6)}, ${currentData.lng.toFixed(6)}`;
+        projectPin = L.marker([lat, lng], {icon: redIcon, draggable: true}).addTo(map);
+        updatePinCoords(lat, lng);
+
+        projectPin.on('dragend', function(e) {
+            const newPos = e.target.getLatLng();
+            currentCenter = [newPos.lat, newPos.lng];
+            searchCircle.setLatLng(newPos);
+            updatePinCoords(newPos.lat, newPos.lng);
+            fetchBoreholes();
+        });
+
+        searchCircle = L.circle([lat, lng], {
+            radius: parseInt(radiusSlider.value),
+            color: '#3498db', fillOpacity: 0.1
+        }).addTo(map);
+
+        map.setView([lat, lng], 14);
         fetchBoreholes();
     }
 
-    // --- NY JUPITER WFS (Opdateret 2026 URL-struktur) ---
-    async function fetchBoreholes() {
-        if (!currentData.lat) return;
-        boreholeLayer.clearLayers();
-        statusBox.className = "stats-box searching";
-        statusBox.innerText = "Henter boringer...";
+    function updatePinCoords(lat, lng) {
+        document.getElementById('pinCoords').innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    }
 
-        const bbox = getBBox(currentData.lat, currentData.lng, currentData.radius);
+    // --- 3. Hent Boringer fra Dataforsyningen (SDFI/Jupiter) ---
+    async function fetchBoreholes() {
+        if (!currentCenter) return;
+        boreholeLayer.clearLayers();
+        counterEl.innerText = "Søger i databasen...";
+
+        const radius = parseInt(radiusSlider.value);
+        const bbox = getBBox(currentCenter[0], currentCenter[1], radius);
         
-        // Ny stabil URL til SDFI Jupiter WFS (v1.1.0)
-        const baseUrl = "https://api.dataforsyningen.dk/geus_jupiter_wfs_v1"; 
-        const params = new URLSearchParams({
-            token: TOKEN,
-            service: "WFS",
-            version: "1.1.0",
-            request: "GetFeature",
-            typeName: "geus_jupiter_wfs:boring",
-            outputFormat: "application/json",
-            srsName: "EPSG:4326",
-            bbox: `${bbox.minLng},${bbox.minLat},${bbox.maxLng},${bbox.maxLat},EPSG:4326`,
-            maxFeatures: "1000"
-        });
+        // Vi bruger WFS fra Dataforsyningen - den er mere stabil overfor CORS
+        // Format: minLng, minLat, maxLng, maxLat
+        const bboxStr = `${bbox.minLng},${bbox.minLat},${bbox.maxLng},${bbox.maxLat}`;
+        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:boring&OUTPUTFORMAT=application/json&BBOX=${bboxStr},EPSG:4326&MAXFEATURES=500`;
 
         try {
-            const resp = await fetch(`${baseUrl}?${params.toString()}`);
-            if (!resp.ok) throw new Error(`Status: ${resp.status}`);
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("Kunne ikke hente data");
+            const data = await response.json();
             
-            const data = await resp.json();
-            const count = data.features ? data.features.length : 0;
+            const features = data.features || [];
+            counterEl.innerText = `Boringer fundet: ${features.length}`;
+            fetchBtn.disabled = (features.length === 0);
 
-            statusBox.className = "stats-box ready";
-            statusBox.innerText = `Resultat: ${count} boringer fundet`;
-            nextBtn.disabled = count === 0;
-
-            data.features.forEach(f => {
-                const latlng = [f.geometry.coordinates[1], f.geometry.coordinates[0]];
-                L.circleMarker(latlng, {
-                    radius: 6, color: '#2c3e50', fillColor: '#34495e', fillOpacity: 0.7, weight: 1.5
+            features.forEach(f => {
+                const coords = f.geometry.coordinates; // [lng, lat]
+                L.circleMarker([coords[1], coords[0]], {
+                    radius: 5,
+                    color: '#2c3e50',
+                    fillColor: '#34495e',
+                    fillOpacity: 0.8,
+                    weight: 1
                 }).bindTooltip(`DGU: ${f.properties.dgunr || 'Ukendt'}`).addTo(boreholeLayer);
             });
-        } catch (e) {
-            statusBox.className = "stats-box error";
-            statusBox.innerText = "API Fejl - Tjek token eller område.";
-            console.error("Jupiter API Fejl:", e);
+        } catch (err) {
+            console.error(err);
+            counterEl.innerText = "Fejl ved hentning af prikker";
         }
     }
 
-    document.getElementById('radiusSlider').oninput = (e) => {
-        currentData.radius = parseInt(e.target.value);
-        document.getElementById('radiusText').innerText = currentData.radius;
-        if (searchCircle) searchCircle.setRadius(currentData.radius);
-    };
-    document.getElementById('radiusSlider').onchange = fetchBoreholes;
+    // --- 4. Hjælpefunktioner ---
+    radiusSlider.addEventListener('input', (e) => {
+        document.getElementById('radiusVal').innerText = e.target.value;
+        if (searchCircle) searchCircle.setRadius(parseInt(e.target.value));
+    });
+    radiusSlider.addEventListener('change', fetchBoreholes);
 
-    function getBBox(lat, lng, radius) {
-        const d = radius / 111320;
-        return { 
-            minLat: lat - d, maxLat: lat + d, 
-            minLng: lng - (d / Math.cos(lat * Math.PI / 180)), 
-            maxLng: lng + (d / Math.cos(lat * Math.PI / 180)) 
-        };
+    function getBBox(lat, lng, radiusM) {
+        const degPerM = 1 / 111320;
+        const latD = radiusM * degPerM;
+        const lngD = (radiusM * degPerM) / Math.cos(lat * Math.PI / 180);
+        return { minLat: lat - latD, maxLat: lat + latD, minLng: lng - lngD, maxLng: lng + lngD };
     }
-
-    nextBtn.onclick = () => {
-        localStorage.setItem('selectedProject', JSON.stringify(currentData));
-        alert("Projekt logget. Klar til næste fase.");
-    };
 </script>
 </body>
 </html>

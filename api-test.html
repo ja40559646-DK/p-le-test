@@ -1,42 +1,23 @@
-<!DOCTYPE html>
-<html lang="da">
-<head>
-    <meta charset="UTF-8">
-    <title>Alternative Data Test</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; background: #2c3e50; color: white; }
-        #log { background: #000; color: #0f0; padding: 20px; font-family: monospace; border-radius: 5px; min-height: 200px; }
-    </style>
-</head>
-<body>
-    <h2>Test: Alternativ Geodata-bro</h2>
-    <button onclick="testAlt()" style="padding: 15px; cursor: pointer; font-weight: bold;">HENT PRØVE-DATA</button>
-    <pre id="log">Venter på klik...</pre>
+export default {
+  async fetch(request, env, ctx) {
+    // URL'en vi vil kalde hos SDFI
+    const url = new URL(request.url);
+    const targetUrl = `https://api.dataforsyningen.dk${url.pathname}${url.search}`;
 
-<script>
-    async function testAlt() {
-        const log = document.getElementById('log');
-        log.innerText = "Forsøger at hente Jupiter-data via Miljøportalens åbne API...\n";
+    // Tilføj CORS headers så din GitHub må læse svaret
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+      "Access-Control-Max-Age": "86400",
+    };
 
-        // Vi prøver at hente Jupiter boringer via Danmarks Miljøportals åbne REST API
-        // Dette endpoint kræver ofte ikke token til simple opslag og tillader CORS!
-        const url = `https://kort.miljoeportal.dk/gis/rest/services/Grundvand/Jupiter/MapServer/0/query?where=1%3D1&outFields=DGU_NR&returnGeometry=true&f=pjson&resultRecordCount=5`;
-
-        try {
-            const resp = await fetch(url);
-            const data = await resp.json();
-            
-            if (data.features) {
-                log.innerText += "SUCCES! Vi har fundet en åben dør.\n";
-                log.innerText += "Fandt DGU-nr: " + data.features[0].attributes.DGU_NR;
-                console.log(data);
-            } else {
-                log.innerText += "Forbindelse ok, men ingen data modtaget.";
-            }
-        } catch (err) {
-            log.innerText += "FEJL: Denne vej er også lukket: " + err.message;
-        }
-    }
-</script>
-</body>
-</html>
+    // Hent data fra SDFI
+    const response = await fetch(targetUrl);
+    
+    // Send data tilbage til din browser med de rigtige tilladelser
+    return new Response(response.body, {
+      status: response.status,
+      headers: { ...response.headers, ...corsHeaders }
+    });
+  },
+};

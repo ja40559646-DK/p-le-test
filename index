@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Borings-Analysator | Professionelt Værktøj</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; }
+        body { display: flex; height: 100vh; margin: 0; font-family: 'Segoe UI', Roboto, sans-serif; background: #f4f7f6; }
+        
+        #sidebar { 
+            width: 400px; padding: 25px; background: white; 
+            border-right: 1px solid #ddd; box-shadow: 4px 0 15px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; z-index: 1000;
+        }
+
+        #map { flex-grow: 1; }
+
+        .card { 
+            background: #fdfdfd; border: 1px solid #e0e0e0; 
+            padding: 15px; border-radius: 10px; margin-bottom: 20px;
+        }
+
+        h2 { margin-top: 0; color: var(--primary); font-size: 1.4rem; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; }
+
+        input[type="text"] { 
+            width: 100%; padding: 12px; border: 1px solid #ccc; 
+            border-radius: 6px; box-sizing: border-box; font-size: 1rem;
+        }
+
+        .suggestions-list { 
+            background: white; border: 1px solid #ddd; border-radius: 0 0 6px 6px;
+            max-height: 200px; overflow-y: auto; position: absolute; width: 350px; z-index: 2000;
+        }
+        .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
+        .suggestion-item:hover { background: var(--accent); color: white; }
+
+        .stats-box { text-align: center; padding: 15px; border-radius: 8px; font-weight: bold; }
+        .ready { background: #e8f5e9; color: var(--success); }
+        .searching { background: #e3f2fd; color: var(--accent); }
+
+        .btn-main { 
+            background: var(--primary); color: white; border: none; 
+            padding: 15px; width: 100%; border-radius: 6px; 
+            font-size: 1.1rem; font-weight: bold; cursor: pointer;
+            transition: transform 0.1s, background 0.2s;
+        }
+        .btn-main:hover { background: #1a252f; }
+        .btn-main:active { transform: scale(0.98); }
+        .btn-main:disabled { background: #ccc; cursor: not-allowed; }
+
+        #coords-display { font-family: monospace; font-size: 0.85rem; color: #7f8c8d; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>Borings-lokalisering</h2>
+    
+    <div class="card">
+        <label>1. Start med adressen</label>
+        <div style="position: relative;">
+            <input type="text" id="addressInput" placeholder="Søg vej og husnummer..." autocomplete="off">
+            <div id="suggestions" class="suggestions-list"></div>
+        </div>
+        <div id="coords-display">Punkt: Ingen adresse valgt</div>
+    </div>
+
+    <div class="card">
+        <label>2. Vælg søgeradius: <span id="radiusText">2000</span> m</label>
+        <input type="range" id="radiusSlider" min="100" max="10000" step="100" value="2000" style="width: 100%;">
+        <p style="font-size: 0.8rem; color: #666;">Tip: Juster radius for at finde ca. 20 boringer for den bedste data-kvalitet.</p>
+    </div>
+
+    <div id="statusBox" class="stats-box">
+        Venter på input...
+    </div>
+
+    <div style="margin-top: auto;">
+        <button id="nextStepBtn" class="btn-main" disabled>LOG PUNKT & SE DETALJER</button>
+    </div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    let map, projectPin, searchCircle, boreholeLayer;
+    let currentData = { lat: null, lng: null, radius: 2000, address: "" };
+
+    // Initialiser kort
+    map = L.map('map', { zoomControl: false }).setView([56, 11], 7);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap | SDFI Jupiter'
+    }).addTo(map);
+
+    boreholeLayer = L.layerGroup().addTo(map);
+
+    const addrInput = document.getElementById('addressInput');
+    const suggestionsEl = document.getElementById('suggestions');
+    const statusBox = document.getElementById('statusBox');
+    const nextBtn = document.getElementById('nextStepBtn');
+
+    // --- Adresse Autocomplete (DAWA) ---
+    addrInput.addEventListener('input', async (e) => {
+        const q = e.target.value;
+        if (q.length < 3) { suggestionsEl.innerHTML = ''; return; }
+        
+        const resp = await fetch(`https://api.dataforsyningen.dk/adresser/autocomplete?q=${encodeURIComponent(q)}`);
+        const data = await resp.json();
+        
+        suggestionsEl.innerHTML = '';
+        data.forEach(item => {
+            const d = document.createElement('div');
+            d.className = 'suggestion-item';
+            d.innerText = item.tekst;
+            d.onclick = () => selectAddress(item);
+            suggestionsEl.appendChild(d);
+        });
+    });
+
+    async function selectAddress(item) {
+        addrInput.value = item.tekst;
+        suggestionsEl.innerHTML = '';
+        const resp = await fetch(item.adresse.href);
+        const data = await resp.json();
+        const lat = data.adgangsadresse.adgangspunkt.koordinater[1];
+        const lng = data.adgangsadresse.adgangspunkt.koordinater[0];
+        
+        currentData.address = item.tekst;
+        initProjectPoint(lat, lng);
+    }
+
+    function initProjectPoint(lat, lng) {
+        currentData.lat = lat;
+        currentData.lng = lng;
+        
+        if (projectPin) map.removeLayer(projectPin);
+        if (searchCircle) map.removeLayer(searchCircle);
+
+        projectPin = L.marker([lat, lng], { draggable: true }).addTo(map);
+        searchCircle = L.circle([lat, lng], { 
+            radius: currentData.radius, color: '#3498db', fillOpacity: 0.1 
+        }).addTo(map);
+
+        map.setView([lat, lng], 14);
+        updateUI();
+
+        projectPin.on('dragend', (e) => {
+            const pos = e.target.getLatLng();
+            currentData.lat = pos.lat;
+            currentData.lng = pos.lng;
+            searchCircle.setLatLng(pos);
+            updateUI();
+        });
+    }
+
+    function updateUI() {
+        document.getElementById('coords-display').innerText = `Punkt: ${currentData.lat.toFixed(5)}, ${currentData.lng.toFixed(5)}`;
+        fetchBoreholes();
+    }
+
+    // --- Hentning af Boringer (SDFI WFS) ---
+    async function fetchBoreholes() {
+        if (!currentData.lat) return;
+        
+        boreholeLayer.clearLayers();
+        statusBox.className = "stats-box searching";
+        statusBox.innerText = "Søger i Jupiter databasen...";
+
+        const bbox = getBBox(currentData.lat, currentCenterLng = currentData.lng, currentData.radius);
+        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:boring&OUTPUTFORMAT=application/json&BBOX=${bbox.minLng},${bbox.minLat},${bbox.maxLng},${bbox.maxLat},EPSG:4326&MAXFEATURES=500`;
+
+        try {
+            const resp = await fetch(url);
+            const data = await resp.json();
+            const count = data.features ? data.features.length : 0;
+
+            statusBox.className = "stats-box ready";
+            statusBox.innerText = `Fundet: ${count} boringer`;
+            nextBtn.disabled = count === 0;
+
+            data.features.forEach(f => {
+                L.circleMarker([f.geometry.coordinates[1], f.geometry.coordinates[0]], {
+                    radius: 5, color: '#2c3e50', fillColor: '#34495e', fillOpacity: 0.8, weight: 1
+                }).bindTooltip(`DGU: ${f.properties.dgunr}`).addTo(boreholeLayer);
+            });
+        } catch (e) {
+            statusBox.innerText = "Forbindelsesfejl til SDFI";
+            console.error(e);
+        }
+    }
+
+    document.getElementById('radiusSlider').oninput = (e) => {
+        currentData.radius = parseInt(e.target.value);
+        document.getElementById('radiusText').innerText = currentData.radius;
+        if (searchCircle) searchCircle.setRadius(currentData.radius);
+    };
+
+    document.getElementById('radiusSlider').onchange = fetchBoreholes;
+
+    function getBBox(lat, lng, radius) {
+        const d = radius / 111320;
+        return { 
+            minLat: lat - d, maxLat: lat + d, 
+            minLng: lng - (d / Math.cos(lat * Math.PI / 180)), 
+            maxLng: lng + (d / Math.cos(lat * Math.PI / 180)) 
+        };
+    }
+
+    // Gem data og gå videre
+    nextBtn.onclick = () => {
+        localStorage.setItem('selectedProject', JSON.stringify(currentData));
+        alert("Projekt-data er logget!\nNu kan du åbne din næste side, som vil læse disse koordinater.");
+    };
+</script>
+</body>
+</html>

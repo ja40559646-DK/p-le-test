@@ -1,23 +1,104 @@
-export default {
-  async fetch(request, env, ctx) {
-    // URL'en vi vil kalde hos SDFI
-    const url = new URL(request.url);
-    const targetUrl = `https://api.dataforsyningen.dk${url.pathname}${url.search}`;
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <title>SDFI JSONP Gennembrudstest</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 30px; background: #1a1a1a; color: #eee; }
+        .container { max-width: 700px; margin: 0 auto; background: #2d2d2d; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { color: #3498db; margin-top: 0; }
+        #console { 
+            background: #000; border: 1px solid #444; padding: 15px; border-radius: 6px; 
+            height: 350px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 13px; color: #00ff00;
+            line-height: 1.5; margin: 20px 0;
+        }
+        .btn { 
+            background: #3498db; color: white; border: none; padding: 15px 30px; 
+            border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; font-size: 1rem;
+        }
+        .btn:hover { background: #2980b9; }
+        .tag { padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 10px; text-transform: uppercase; margin-right: 5px; }
+        .tag-info { background: #3498db; color: white; }
+        .tag-error { background: #e74c3c; color: white; }
+        .tag-success { background: #2ecc71; color: white; }
+    </style>
+</head>
+<body>
 
-    // Tilføj CORS headers så din GitHub må læse svaret
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
-      "Access-Control-Max-Age": "86400",
-    };
-
-    // Hent data fra SDFI
-    const response = await fetch(targetUrl);
+<div class="container">
+    <h2>SDFI Jupiter Forbindelse (JSONP)</h2>
+    <p>Vi tester nu om vi kan "snige" data ind via et script-kald (JSONP), som ignorerer CORS-reglerne.</p>
     
-    // Send data tilbage til din browser med de rigtige tilladelser
-    return new Response(response.body, {
-      status: response.status,
-      headers: { ...response.headers, ...corsHeaders }
-    });
-  },
-};
+    <button class="btn" onclick="startTest()">KØR FORBINDELSES-TEST</button>
+    
+    <div id="console">Venter på start...</div>
+</div>
+
+<script>
+    const TOKEN = "16482bf85f4018a2952adcbccccd8c84";
+    const consoleEl = document.getElementById('console');
+
+    function log(msg, type = 'info') {
+        const time = new Date().toLocaleTimeString();
+        const tag = `<span class="tag tag-${type}">${type}</span>`;
+        consoleEl.innerHTML += `<div>[${time}] ${tag} ${msg}</div>`;
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function startTest() {
+        consoleEl.innerHTML = ''; // Rens skærm
+        log("Starter test med Token: " + TOKEN.substring(0,6) + "...");
+
+        // Vi definerer et test-område (BBOX omkring Roskilde/København)
+        const bbox = "12.00,55.50,12.50,55.80";
+        
+        // Vi bruger VERSION 1.1.0 og format_options=callback
+        // Dette tvinger serveren til at sende et svar, som browseren må læse som et script
+        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?` + 
+                    `token=${TOKEN}&` +
+                    `service=WFS&` +
+                    `version=1.1.0&` +
+                    `request=GetFeature&` +
+                    `typeName=geus_jupiter_wfs:boring&` +
+                    `outputFormat=json&` +
+                    `maxFeatures=5&` +
+                    `BBOX=${bbox},EPSG:4326&` +
+                    `format_options=callback:modtagData`;
+
+        log("Sender kald via dynamisk script-tag...");
+
+        // Fjern gammelt script hvis det findes
+        const old = document.getElementById('test-script');
+        if (old) old.remove();
+
+        const script = document.createElement('script');
+        script.id = 'test-script';
+        script.src = url;
+
+        // Hvis serveren helt nægter at svare (f.eks. 404 eller 401)
+        script.onerror = function() {
+            log("FEJL: Serveren afviste scriptet helt. Ingen forbindelse.", "error");
+        };
+
+        document.body.appendChild(script);
+    }
+
+    // Denne funktion køres af SDFI, når de svarer
+    window.modtagData = function(data) {
+        log("SVAR MODTAGET!", "success");
+        
+        if (data && data.features) {
+            log("Antal features fundet: " + data.features.length, "success");
+            if (data.features.length > 0) {
+                log("Første DGU-nr: " + data.features[0].properties.dgunr, "success");
+            }
+        } else {
+            log("Modtog svar, men formatet var tomt eller forkert.", "error");
+        }
+        
+        console.log("Rå data fra SDFI:", data);
+    };
+</script>
+
+</body>
+</html>

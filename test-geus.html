@@ -2,64 +2,91 @@
 <html lang="da">
 <head>
     <meta charset="UTF-8">
-    <title>GEUS Test: CORB FIX</title>
+    <title>GEUS Test: Proxy Løsning</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .card { background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; max-width: 800px; margin: auto; }
-        #log { background: #222; color: #0f0; padding: 10px; border-radius: 4px; max-height: 300px; overflow: auto; }
+        body { font-family: sans-serif; padding: 20px; background: #f0f2f5; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 800px; margin: auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; font-weight: bold; }
+        .waiting { background: #e3f2fd; color: #0d47a1; }
+        .success { background: #e8f5e9; color: #1b5e20; }
+        .error { background: #ffebee; color: #b71c1c; }
+        pre { background: #222; color: #0f0; padding: 15px; border-radius: 4px; max-height: 400px; overflow: auto; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        td, th { border: 1px solid #ddd; padding: 8px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Jupiter WFS Test (CORB FIX)</h2>
-    <p>Vi forsøger med et andet format-kald for at omgå browserens blokering.</p>
+    <h2>Jupiter Proxy Test (Boring 222. 95)</h2>
+    <p>Vi bruger en CORS-proxy til at omgå blokeringen på GitHub.</p>
     
-    <button id="btnHent">Hent Data for 222. 95</button>
-    <p id="status">Status: Venter...</p>
+    <button id="btnHent" style="padding: 12px 20px; cursor: pointer; background: #2ecc71; color: white; border: none; border-radius: 4px; font-weight: bold;">HENT JORDLAG NU</button>
 
-    <div id="resultArea">
-        <pre id="log">Logbeskeder vises her...</pre>
+    <div id="statusBox"></div>
+
+    <div id="resultArea" style="display:none;">
+        <h3>Data fundet!</h3>
+        <table id="tabel">
+            <thead><tr><th>Fra</th><th>Til</th><th>Beskrivelse</th></tr></thead>
+            <tbody></tbody>
+        </table>
     </div>
+
+    <h4>System Log:</h4>
+    <pre id="log">Venter på klik...</pre>
 </div>
 
 <script>
     const TOKEN = "16482bf85f4018a2952adcbccccd8c84";
     const DGU = "222. 95";
 
-    // Denne funktion SKAL være global (window.)
-    window.handleJupiterData = function(data) {
-        console.log("Data modtaget!", data);
+    document.getElementById('btnHent').addEventListener('click', async function() {
+        const statusBox = document.getElementById('statusBox');
         const log = document.getElementById('log');
-        const status = document.getElementById('status');
+        const tbody = document.querySelector('#tabel tbody');
         
-        status.innerText = "Succes! Data modtaget.";
-        log.innerText = JSON.stringify(data, null, 2);
-    };
+        statusBox.className = "status waiting";
+        statusBox.innerText = "Henter data via Proxy...";
+        log.innerText = "Forbinder til proxy...";
 
-    document.getElementById('btnHent').addEventListener('click', function() {
-        const status = document.getElementById('status');
-        const log = document.getElementById('log');
+        // Her er "trylle-formularen": Vi sætter proxy-url'en foran GEUS-url'en
+        const geusUrl = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:jordlag&OUTPUTFORMAT=json&CQL_FILTER=dgunr='${encodeURIComponent(DGU)}'`;
         
-        status.innerText = "Sender anmodning...";
-        log.innerText = "Prøver at hente via JSONP...";
+        const proxyUrl = "https://corsproxy.io/?";
+        const finalUrl = proxyUrl + encodeURIComponent(geusUrl);
 
-        // ÆNDRING: Vi bruger OUTPUTFORMAT=text/javascript (hvis understøttet) 
-        // eller fjerner JSON-tvangen og lader callback styre det.
-        // Vi prøver også at fjerne mellemrummet i CQL filteret for en sikkerheds skyld
-        const dguClean = DGU.replace(" ", "%20");
-        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:jordlag&OUTPUTFORMAT=text/javascript&format_options=callback:handleJupiterData&CQL_FILTER=dgunr='${DGU}'`;
+        try {
+            const response = await fetch(finalUrl);
+            
+            if (!response.ok) throw new Error("Proxy svarede ikke korrekt: " + response.status);
 
-        const script = document.createElement('script');
-        script.src = url;
-        
-        script.onerror = function() {
-            // Hvis det fejler, er det sandsynligvis fordi WFS-tjenesten ikke vil levere JSONP
-            status.innerText = "Fejl: Browseren blokerede kaldet (CORS/CORB).";
-            log.innerText += "\n\nFEJL: WFS-tjenesten tillader muligvis ikke direkte JSONP-kald fra GitHub Pages.";
-        };
+            const data = await response.json();
+            log.innerText = JSON.stringify(data, null, 2);
 
-        document.body.appendChild(script);
+            if (data.features && data.features.length > 0) {
+                statusBox.className = "status success";
+                statusBox.innerText = "SUCCES! Forbindelse etableret.";
+                
+                tbody.innerHTML = "";
+                data.features.sort((a,b) => a.properties.topdybde - b.properties.topdybde).forEach(f => {
+                    tbody.innerHTML += `<tr>
+                        <td>${f.properties.topdybde} m</td>
+                        <td>${f.properties.bunddybde} m</td>
+                        <td>${f.properties.bjergart || 'Ukendt'}</td>
+                    </tr>`;
+                });
+                document.getElementById('resultArea').style.display = "block";
+            } else {
+                statusBox.className = "status error";
+                statusBox.innerText = "Ingen data fundet for 222. 95.";
+            }
+
+        } catch (err) {
+            statusBox.className = "status error";
+            statusBox.innerText = "Fejl: " + err.message;
+            log.innerText = "FEJL DETALJER: " + err.message;
+        }
     });
 </script>
 

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <title>GEUS Adgangs-Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; max-width: 800px; margin: 0 auto; }
+        .test-card { border: 1px solid #ccc; padding: 15px; border-radius: 8px; background: #f9f9f9; }
+        .status-badge { padding: 5px 10px; border-radius: 4px; font-weight: bold; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        pre { background: #eee; padding: 10px; overflow-x: auto; border-radius: 4px; font-size: 12px; }
+        input { padding: 8px; width: 150px; }
+        button { padding: 8px 15px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <h1>Jupiter API Forbindelsestest</h1>
+    <p>Denne fil tester adgangen til GEUS' database for at se, om vi kan hente detaljer om en specifik boring.</p>
+
+    <div class="test-card">
+        <label>Indtast DGU nr. (f.eks. 113. 147):</label><br><br>
+        <input type="text" id="dguInput" value="113. 147">
+        <button onclick="testForbindelse()">Test Forbindelse</button>
+        
+        <p>Status: <span id="status" class="status-badge">Klar</span></p>
+    </div>
+
+    <h3>Data fra GEUS:</h3>
+    <pre id="output">Resultatet vil blive vist her...</pre>
+
+    <hr>
+    <h4>Hvad tester vi?</h4>
+    <ul>
+        <li><strong>Forbindelse:</strong> Kan vi nå GEUS' servere fra din browser?</li>
+        <li><strong>Data-format:</strong> Modtager vi JSON-data, som vi kan arbejde med?</li>
+        <li><strong>Indhold:</strong> Indeholder svaret information om f.eks. dybde eller vandstand?</li>
+    </ul>
+
+    <script>
+        async function testForbindelse() {
+            const dgu = document.getElementById('dguInput').value.trim();
+            const statusEl = document.getElementById('status');
+            const outputEl = document.getElementById('output');
+
+            statusEl.innerText = "Forbinder...";
+            statusEl.className = "status-badge";
+            outputEl.innerText = "Henter data...";
+
+            // Vi bruger GEUS' officielle søge-API (REST)
+            // Det kræver ikke SOAP/WSDL login og er derfor perfekt til denne test
+            const url = `https://data.geus.dk/JupiterSearch/api/v1/borehole/${encodeURIComponent(dgu)}`;
+
+            try {
+                const response = await fetch(url);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    statusEl.innerText = "FORBUNDET";
+                    statusEl.className = "status-badge success";
+                    
+                    // Vis data pænt
+                    outputEl.innerText = JSON.stringify(data, null, 2);
+                    console.log("Succes!", data);
+                } else {
+                    throw new Error(`Serveren svarede med fejlkode: ${response.status}`);
+                }
+            } catch (error) {
+                statusEl.innerText = "FEJL";
+                statusEl.className = "status-badge error";
+                outputEl.innerText = "Fejlbesked: " + error.message + 
+                    "\n\nBemærk: Hvis du ser en 'CORS' fejl i konsollen, betyder det at GEUS blokerer direkte browser-kald. " +
+                    "I så fald skal vi bruge en lille proxy-løsning.";
+                console.error("Test fejlede:", error);
+            }
+        }
+    </script>
+</body>
+</html>

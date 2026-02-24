@@ -2,14 +2,11 @@
 <html lang="da">
 <head>
     <meta charset="UTF-8">
-    <title>GEUS Test: 222. 95</title>
+    <title>GEUS Test: 222. 95 (CORS FIX)</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); max-width: 800px; margin: auto; }
-        .status { padding: 10px; margin: 10px 0; border-radius: 4px; font-weight: bold; }
-        .waiting { background: #e3f2fd; color: #0d47a1; }
-        .success { background: #e8f5e9; color: #1b5e20; }
-        .error { background: #ffebee; color: #b71c1c; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; font-weight: bold; background: #e3f2fd; color: #0d47a1; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background: #eee; }
@@ -19,12 +16,12 @@
 <body>
 
 <div class="card">
-    <h2>Jupiter WFS Test (Boring 222. 95)</h2>
-    <p>Vi forsøger at hente jordlag fra GEUS' database.</p>
+    <h2>Jupiter WFS Test (JSONP Version)</h2>
+    <p>Vi bruger nu JSONP for at omgå CORS-blokeringen på GitHub.</p>
     
-    <button id="btnHent" style="padding: 10px 20px; cursor: pointer;">Hent Data Nu</button>
+    <button id="btnHent" style="padding: 10px 20px; cursor: pointer;">Hent Data for 222. 95</button>
 
-    <div id="statusBox"></div>
+    <div id="statusBox" class="status">Klar til test</div>
 
     <div id="resultArea" style="display:none;">
         <h3>Jordlag fundet:</h3>
@@ -33,7 +30,7 @@
                 <tr>
                     <th>Fra (m)</th>
                     <th>Til (m)</th>
-                    <th>Beskrivelse</th>
+                    <th>Beskrivelse (Bjergart)</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -45,58 +42,56 @@
 </div>
 
 <script>
-    // Konstanter
     const TOKEN = "16482bf85f4018a2952adcbccccd8c84";
     const DGU = "222. 95";
 
-    // Vi bruger en EventListener i stedet for onclick i HTML, 
-    // da det er mere sikkert og undgår "not defined" fejl.
-    document.getElementById('btnHent').addEventListener('click', async function() {
+    // Denne funktion køres når data kommer retur fra GEUS
+    window.handleJupiterData = function(data) {
         const statusBox = document.getElementById('statusBox');
         const log = document.getElementById('log');
         const tbody = document.querySelector('#jordlagTabel tbody');
         const resultArea = document.getElementById('resultArea');
 
-        statusBox.className = "status waiting";
-        statusBox.innerText = "Forbinder til GEUS...";
-        log.innerText = "Starter fetch...";
+        log.innerText = JSON.stringify(data, null, 2);
 
-        // Den præcise URL til jordlag via WFS
-        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:jordlag&OUTPUTFORMAT=json&CQL_FILTER=dgunr='${encodeURIComponent(DGU)}'`;
-
-        try {
-            const response = await fetch(url);
+        if (data.features && data.features.length > 0) {
+            statusBox.innerText = "Succes! Data modtaget via JSONP.";
+            statusBox.style.background = "#e8f5e9";
+            statusBox.style.color = "#1b5e20";
             
-            if (!response.ok) throw new Error("Netværksfejl: " + response.status);
-
-            const data = await response.json();
-            log.innerText = JSON.stringify(data, null, 2);
-
-            if (data.features && data.features.length > 0) {
-                statusBox.className = "status success";
-                statusBox.innerText = "Succes! Data modtaget.";
-                
-                // Tøm tabellen og fyld den
-                tbody.innerHTML = "";
-                data.features.sort((a,b) => a.properties.topdybde - b.properties.topdybde).forEach(f => {
-                    const p = f.properties;
-                    tbody.innerHTML += `<tr>
-                        <td>${p.topdybde}</td>
-                        <td>${p.bunddybde}</td>
-                        <td>${p.bjergart || 'Ukendt'}</td>
-                    </tr>`;
-                });
-                resultArea.style.display = "block";
-            } else {
-                statusBox.className = "status error";
-                statusBox.innerText = "Ingen data fundet for DGU 222. 95.";
-            }
-
-        } catch (err) {
-            statusBox.className = "status error";
-            statusBox.innerText = "Fejl: " + err.message;
-            log.innerText = "FEJL: " + err.stack;
+            tbody.innerHTML = "";
+            // Sorter efter dybde
+            data.features.sort((a,b) => a.properties.topdybde - b.properties.topdybde).forEach(f => {
+                const p = f.properties;
+                tbody.innerHTML += `<tr>
+                    <td>${p.topdybde}</td>
+                    <td>${p.bunddybde}</td>
+                    <td>${p.bjergart || 'Ukendt'}</td>
+                </tr>`;
+            });
+            resultArea.style.display = "block";
+        } else {
+            statusBox.innerText = "Ingen data fundet for DGU 222. 95. Tjek evt. DGU-formatet.";
         }
+    };
+
+    document.getElementById('btnHent').addEventListener('click', function() {
+        const statusBox = document.getElementById('statusBox');
+        statusBox.innerText = "Henter data via script-tag (JSONP)...";
+
+        // Vi tilføjer format_options=callback:handleJupiterData for at omgå CORS
+        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:jordlag&OUTPUTFORMAT=json&CQL_FILTER=dgunr='${encodeURIComponent(DGU)}'&format_options=callback:handleJupiterData`;
+
+        // Opret det dynamiske script tag
+        const script = document.createElement('script');
+        script.src = url;
+        script.onerror = function() {
+            statusBox.innerText = "Fejl ved indlæsning af script. Tjek token eller URL.";
+        };
+        
+        document.body.appendChild(script);
+        // Fjern det igen efter brug for at rydde op
+        script.remove();
     });
 </script>
 

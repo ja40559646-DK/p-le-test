@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Borings-Atlas 2026 | SDFI Fix</title>
+    <title>Borings-Atlas | JSONP Version</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --primary: #1a252f; --accent: #3498db; --success: #27ae60; }
@@ -28,21 +28,21 @@
 <body>
 
 <div id="sidebar">
-    <h2>Borings-lokalisering</h2>
+    <h2>Borings-Atlas</h2>
     <div class="card">
         <label>Søg adresse</label>
         <div style="position: relative;">
-            <input type="text" id="addressInput" placeholder="Vej og husnummer..." autocomplete="off">
+            <input type="text" id="addressInput" placeholder="Søg adresse..." autocomplete="off">
             <div id="suggestions" class="suggestions-list"></div>
         </div>
     </div>
     <div class="card">
-        <label>Søgeradius: <span id="radiusText">1000</span> m</label>
+        <label>Radius: <span id="radiusText">1000</span> m</label>
         <input type="range" id="radiusSlider" min="100" max="2000" step="100" value="1000" style="width: 100%;">
     </div>
-    <div id="statusBox" class="stats-box">Klar</div>
+    <div id="statusBox" class="stats-box">Status: Klar</div>
     <div style="margin-top: auto;">
-        <button id="nextStepBtn" class="btn-main" disabled>LOG PUNKT & SE DETALJER</button>
+        <button id="nextStepBtn" class="btn-main" disabled>LOG PUNKT</button>
     </div>
 </div>
 
@@ -50,9 +50,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // DIN TOKEN
     const TOKEN = "16482bf85f4018a2952adcbccccd8c84"; 
-
     let map, projectPin, searchCircle, boreholeLayer;
     let currentData = { lat: null, lng: null, radius: 1000 };
 
@@ -64,35 +62,44 @@
     const suggestionsEl = document.getElementById('suggestions');
     const statusBox = document.getElementById('statusBox');
 
-    // DAWA Autocomplete (Dette endpoint har CORS tilladelse)
-    addrInput.addEventListener('input', async (e) => {
-        const q = e.target.value;
-        if (q.length < 3) { suggestionsEl.innerHTML = ''; return; }
-        const resp = await fetch(`https://api.dataforsyningen.dk/adresser/autocomplete?q=${encodeURIComponent(q)}`);
-        const data = await resp.json();
+    // DAWA Autocomplete via JSONP (sikrer mod CORS)
+    addrInput.addEventListener('input', function() {
+        const q = this.value;
+        if (q.length < 3) return;
+        
+        const script = document.createElement('script');
+        script.src = `https://api.dataforsyningen.dk/adresser/autocomplete?q=${encodeURIComponent(q)}&callback=handleAddrSuggest`;
+        document.body.appendChild(script);
+        script.remove();
+    });
+
+    window.handleAddrSuggest = function(data) {
         suggestionsEl.innerHTML = '';
         data.forEach(item => {
             const d = document.createElement('div');
             d.className = 'suggestion-item';
             d.innerText = item.tekst;
-            d.onclick = () => selectAddress(item);
+            d.onclick = () => {
+                addrInput.value = item.tekst;
+                suggestionsEl.innerHTML = '';
+                // Hent koordinater via JSONP
+                const script = document.createElement('script');
+                script.src = `${item.adresse.href}?callback=handleAddrDetails`;
+                document.body.appendChild(script);
+                script.remove();
+            };
             suggestionsEl.appendChild(d);
         });
-    });
+    };
 
-    async function selectAddress(item) {
-        addrInput.value = item.tekst;
-        suggestionsEl.innerHTML = '';
-        const resp = await fetch(item.adresse.href);
-        const data = await resp.json();
+    window.handleAddrDetails = function(data) {
         const lat = data.adgangsadresse.adgangspunkt.koordinater[1];
         const lng = data.adgangsadresse.adgangspunkt.koordinater[0];
         initProject(lat, lng);
-    }
+    };
 
     function initProject(lat, lng) {
-        currentData.lat = lat;
-        currentData.lng = lng;
+        currentData.lat = lat; currentData.lng = lng;
         if (projectPin) map.removeLayer(projectPin);
         if (searchCircle) map.removeLayer(searchCircle);
 
@@ -104,56 +111,51 @@
             const pos = e.target.getLatLng();
             currentData.lat = pos.lat; currentData.lng = pos.lng;
             searchCircle.setLatLng(pos);
-            fetchBoreholes();
+            fetchBoreholesJSONP();
         });
-        fetchBoreholes();
+        fetchBoreholesJSONP();
     }
 
-    // --- NY METODE: SDFI OGC API FEATURES ---
-    async function fetchBoreholes() {
+    // --- JSONP MOD SDFI WFS (OMGÅR CORS) ---
+    function fetchBoreholesJSONP() {
         if (!currentData.lat) return;
         boreholeLayer.clearLayers();
         statusBox.className = "stats-box searching";
         statusBox.innerText = "Henter boringer...";
 
         const bbox = getBBox(currentData.lat, currentData.lng, currentData.radius);
-        
-        // Vi skifter til SDFI's OGC API Features, som er designet til web (CORS-friendly)
-        // Her bruger vi BBOX i formatet: minLng,minLat,maxLng,maxLat
         const bboxStr = `${bbox.minLng},${bbox.minLat},${bbox.maxLng},${bbox.maxLat}`;
-        const url = `https://api.dataforsyningen.dk/geus_jupiter_v1/items?token=${TOKEN}&limit=500&bbox=${bboxStr}`;
+        
+        // Vi bruger SDFI's WFS med format_options=callback for JSONP support
+        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:boring&OUTPUTFORMAT=json&BBOX=${bboxStr},EPSG:4326&MAXFEATURES=500&format_options=callback:handleBoreholes`;
 
-        try {
-            const resp = await fetch(url);
-            if (!resp.ok) throw new Error("Fejl: " + resp.status);
-            const data = await resp.json();
-            
-            // OGC API returnerer 'features' array
-            const count = data.features ? data.features.length : 0;
-
-            statusBox.className = "stats-box ready";
-            statusBox.innerText = `Fundet: ${count} boringer`;
-            document.getElementById('nextStepBtn').disabled = (count === 0);
-
-            data.features.forEach(f => {
-                const coords = f.geometry.coordinates; // [lng, lat]
-                L.circleMarker([coords[1], coords[0]], {
-                    radius: 5, color: '#2c3e50', fillColor: '#34495e', fillOpacity: 0.8, weight: 1
-                }).bindTooltip(`DGU: ${f.properties.dgunr || 'Ukendt'}`).addTo(boreholeLayer);
-            });
-        } catch (e) {
-            statusBox.className = "stats-box error";
-            statusBox.innerText = "SDFI blokerer stadig (CORS).";
-            console.error("Fetch fejl:", e);
-        }
+        const script = document.createElement('script');
+        script.src = url;
+        script.onerror = () => { statusBox.innerText = "Fejl ved indlæsning"; };
+        document.body.appendChild(script);
+        script.remove();
     }
+
+    window.handleBoreholes = function(data) {
+        const count = data.features ? data.features.length : 0;
+        statusBox.className = "stats-box ready";
+        statusBox.innerText = `Fundet: ${count} boringer`;
+        document.getElementById('nextStepBtn').disabled = (count === 0);
+
+        data.features.forEach(f => {
+            const coords = f.geometry.coordinates;
+            L.circleMarker([coords[1], coords[0]], {
+                radius: 5, color: '#2c3e50', fillColor: '#34495e', fillOpacity: 0.8, weight: 1
+            }).bindTooltip(`DGU: ${f.properties.dgunr || '?'}`).addTo(boreholeLayer);
+        });
+    };
 
     document.getElementById('radiusSlider').oninput = (e) => {
         currentData.radius = parseInt(e.target.value);
         document.getElementById('radiusText').innerText = currentData.radius;
         if (searchCircle) searchCircle.setRadius(currentData.radius);
     };
-    document.getElementById('radiusSlider').onchange = fetchBoreholes;
+    document.getElementById('radiusSlider').onchange = fetchBoreholesJSONP;
 
     function getBBox(lat, lng, radius) {
         const d = radius / 111320;

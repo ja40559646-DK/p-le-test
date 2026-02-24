@@ -2,96 +2,64 @@
 <html lang="da">
 <head>
     <meta charset="UTF-8">
-    <title>GEUS Test: 222. 95 (CORS FIX)</title>
+    <title>GEUS Test: CORB FIX</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); max-width: 800px; margin: auto; }
-        .status { padding: 10px; margin: 10px 0; border-radius: 4px; font-weight: bold; background: #e3f2fd; color: #0d47a1; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #eee; }
-        pre { background: #222; color: #0f0; padding: 10px; border-radius: 4px; max-height: 200px; overflow: auto; font-size: 11px; }
+        body { font-family: sans-serif; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; max-width: 800px; margin: auto; }
+        #log { background: #222; color: #0f0; padding: 10px; border-radius: 4px; max-height: 300px; overflow: auto; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Jupiter WFS Test (JSONP Version)</h2>
-    <p>Vi bruger nu JSONP for at omgå CORS-blokeringen på GitHub.</p>
+    <h2>Jupiter WFS Test (CORB FIX)</h2>
+    <p>Vi forsøger med et andet format-kald for at omgå browserens blokering.</p>
     
-    <button id="btnHent" style="padding: 10px 20px; cursor: pointer;">Hent Data for 222. 95</button>
+    <button id="btnHent">Hent Data for 222. 95</button>
+    <p id="status">Status: Venter...</p>
 
-    <div id="statusBox" class="status">Klar til test</div>
-
-    <div id="resultArea" style="display:none;">
-        <h3>Jordlag fundet:</h3>
-        <table id="jordlagTabel">
-            <thead>
-                <tr>
-                    <th>Fra (m)</th>
-                    <th>Til (m)</th>
-                    <th>Beskrivelse (Bjergart)</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+    <div id="resultArea">
+        <pre id="log">Logbeskeder vises her...</pre>
     </div>
-
-    <h4>Rå Log:</h4>
-    <pre id="log">Venter på klik...</pre>
 </div>
 
 <script>
     const TOKEN = "16482bf85f4018a2952adcbccccd8c84";
     const DGU = "222. 95";
 
-    // Denne funktion køres når data kommer retur fra GEUS
+    // Denne funktion SKAL være global (window.)
     window.handleJupiterData = function(data) {
-        const statusBox = document.getElementById('statusBox');
+        console.log("Data modtaget!", data);
         const log = document.getElementById('log');
-        const tbody = document.querySelector('#jordlagTabel tbody');
-        const resultArea = document.getElementById('resultArea');
-
+        const status = document.getElementById('status');
+        
+        status.innerText = "Succes! Data modtaget.";
         log.innerText = JSON.stringify(data, null, 2);
-
-        if (data.features && data.features.length > 0) {
-            statusBox.innerText = "Succes! Data modtaget via JSONP.";
-            statusBox.style.background = "#e8f5e9";
-            statusBox.style.color = "#1b5e20";
-            
-            tbody.innerHTML = "";
-            // Sorter efter dybde
-            data.features.sort((a,b) => a.properties.topdybde - b.properties.topdybde).forEach(f => {
-                const p = f.properties;
-                tbody.innerHTML += `<tr>
-                    <td>${p.topdybde}</td>
-                    <td>${p.bunddybde}</td>
-                    <td>${p.bjergart || 'Ukendt'}</td>
-                </tr>`;
-            });
-            resultArea.style.display = "block";
-        } else {
-            statusBox.innerText = "Ingen data fundet for DGU 222. 95. Tjek evt. DGU-formatet.";
-        }
     };
 
     document.getElementById('btnHent').addEventListener('click', function() {
-        const statusBox = document.getElementById('statusBox');
-        statusBox.innerText = "Henter data via script-tag (JSONP)...";
+        const status = document.getElementById('status');
+        const log = document.getElementById('log');
+        
+        status.innerText = "Sender anmodning...";
+        log.innerText = "Prøver at hente via JSONP...";
 
-        // Vi tilføjer format_options=callback:handleJupiterData for at omgå CORS
-        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:jordlag&OUTPUTFORMAT=json&CQL_FILTER=dgunr='${encodeURIComponent(DGU)}'&format_options=callback:handleJupiterData`;
+        // ÆNDRING: Vi bruger OUTPUTFORMAT=text/javascript (hvis understøttet) 
+        // eller fjerner JSON-tvangen og lader callback styre det.
+        // Vi prøver også at fjerne mellemrummet i CQL filteret for en sikkerheds skyld
+        const dguClean = DGU.replace(" ", "%20");
+        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:jordlag&OUTPUTFORMAT=text/javascript&format_options=callback:handleJupiterData&CQL_FILTER=dgunr='${DGU}'`;
 
-        // Opret det dynamiske script tag
         const script = document.createElement('script');
         script.src = url;
-        script.onerror = function() {
-            statusBox.innerText = "Fejl ved indlæsning af script. Tjek token eller URL.";
-        };
         
+        script.onerror = function() {
+            // Hvis det fejler, er det sandsynligvis fordi WFS-tjenesten ikke vil levere JSONP
+            status.innerText = "Fejl: Browseren blokerede kaldet (CORS/CORB).";
+            log.innerText += "\n\nFEJL: WFS-tjenesten tillader muligvis ikke direkte JSONP-kald fra GitHub Pages.";
+        };
+
         document.body.appendChild(script);
-        // Fjern det igen efter brug for at rydde op
-        script.remove();
     });
 </script>
 

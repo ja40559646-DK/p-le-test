@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <title>SDFI Token Test | Sandkasse</title>
+    <style>
+        body { font-family: sans-serif; padding: 40px; line-height: 1.6; background: #f4f4f4; }
+        .test-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }
+        #log { background: #222; color: #0f0; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; margin-top: 20px; }
+        .btn { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn:hover { background: #2980b9; }
+        .status-tag { display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+        .success { background: #d4edda; color: #155724; }
+        .fail { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+
+<div class="test-card">
+    <h2>SDFI API Forbindelses-test</h2>
+    <p>Denne side tester om din token har adgang til Jupiter-boringer via JSONP.</p>
+    
+    <button class="btn" onclick="runTest()">START FORBINDELSES-TEST</button>
+    
+    <div id="log">Klik på knappen for at starte...</div>
+</div>
+
+<script>
+    const TOKEN = "16482bf85f4018a2952adcbccccd8c84";
+    const logEl = document.getElementById('log');
+
+    function log(msg, type = '') {
+        const time = new Date().toLocaleTimeString();
+        const tag = type ? `<span class="status-tag ${type}">${type.toUpperCase()}</span> ` : '';
+        logEl.innerHTML += `<div>[${time}] ${tag}${msg}</div>`;
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function runTest() {
+        log("Starter test mod api.dataforsyningen.dk...");
+        log("Brugt Token: " + TOKEN.substring(0, 4) + "**********");
+
+        // Vi tester et lille område i København (BBOX) for at se om der kommer data
+        const testBbox = "12.56,55.67,12.57,55.68";
+        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:boring&OUTPUTFORMAT=json&BBOX=${testBbox},EPSG:4326&MAXFEATURES=5&format_options=callback:testCallback`;
+
+        log("Sender JSONP request...");
+        
+        const script = document.createElement('script');
+        script.src = url;
+        script.onerror = function() {
+            log("Netværksfejl: Kunne ikke hente scriptet. Serveren afviste forbindelsen.", "fail");
+        };
+        document.body.appendChild(script);
+    }
+
+    // Callback funktion som SDFI kalder
+    window.testCallback = function(data) {
+        log("Svar modtaget fra SDFI!", "success");
+        
+        if (data.features && data.features.length > 0) {
+            log(`FORBINDELSE SUCCES: Fandt ${data.features.length} boringer i test-området.`, "success");
+            log("Første DGU-nummer fundet: " + data.features[0].properties.dgunr);
+        } else {
+            log("FORBINDELSE ETABLERET, men ingen boringer fundet i dette lille test-felt.", "success");
+        }
+        
+        console.log("Rå data fra SDFI:", data);
+    };
+</script>
+
+</body>
+</html>

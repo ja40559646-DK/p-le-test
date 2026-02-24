@@ -2,102 +2,71 @@
 <html lang="da">
 <head>
     <meta charset="UTF-8">
-    <title>SDFI JSONP Gennembrudstest</title>
+    <title>SDFI via Proxy Test | SUCCESS</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; padding: 30px; background: #1a1a1a; color: #eee; }
-        .container { max-width: 700px; margin: 0 auto; background: #2d2d2d; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h2 { color: #3498db; margin-top: 0; }
+        body { font-family: sans-serif; padding: 30px; background: #1a1a1a; color: #eee; }
+        .container { max-width: 700px; margin: 0 auto; background: #2d2d2d; padding: 25px; border-radius: 12px; border-top: 4px solid #27ae60; }
         #console { 
             background: #000; border: 1px solid #444; padding: 15px; border-radius: 6px; 
-            height: 350px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 13px; color: #00ff00;
-            line-height: 1.5; margin: 20px 0;
+            height: 300px; overflow-y: auto; font-family: monospace; color: #00ff00; margin: 20px 0;
         }
-        .btn { 
-            background: #3498db; color: white; border: none; padding: 15px 30px; 
-            border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; font-size: 1rem;
-        }
-        .btn:hover { background: #2980b9; }
-        .tag { padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 10px; text-transform: uppercase; margin-right: 5px; }
-        .tag-info { background: #3498db; color: white; }
-        .tag-error { background: #e74c3c; color: white; }
-        .tag-success { background: #2ecc71; color: white; }
+        .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1.1rem; }
+        .btn:hover { background: #219150; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>SDFI Jupiter Forbindelse (JSONP)</h2>
-    <p>Vi tester nu om vi kan "snige" data ind via et script-kald (JSONP), som ignorerer CORS-reglerne.</p>
+    <h2>SDFI via Cloudflare Proxy</h2>
+    <p>Proxy-URL: <code style="color: #3498db;">https://calm-truth-fd59.ja40559646.workers.dev/</code></p>
     
     <button class="btn" onclick="startTest()">KØR FORBINDELSES-TEST</button>
     
-    <div id="console">Venter på start...</div>
+    <div id="console">Tryk på knappen for at teste din nye bro...</div>
 </div>
 
 <script>
-    const TOKEN = "16482bf85f4018a2952adcbccccd8c84";
+    const MY_TOKEN = "16482bf85f4018a2952adcbccccd8c84";
+    const PROXY_URL = "https://calm-truth-fd59.ja40559646.workers.dev"; 
+
     const consoleEl = document.getElementById('console');
 
-    function log(msg, type = 'info') {
-        const time = new Date().toLocaleTimeString();
-        const tag = `<span class="tag tag-${type}">${type}</span>`;
-        consoleEl.innerHTML += `<div>[${time}] ${tag} ${msg}</div>`;
+    function log(msg, color = "#00ff00") {
+        consoleEl.innerHTML += `<div>[${new Date().toLocaleTimeString()}] <span style="color: ${color}">${msg}</span></div>`;
         consoleEl.scrollTop = consoleEl.scrollHeight;
     }
 
-    function startTest() {
-        consoleEl.innerHTML = ''; // Rens skærm
-        log("Starter test med Token: " + TOKEN.substring(0,6) + "...");
+    async function startTest() {
+        consoleEl.innerHTML = '';
+        log("Kontakter din Cloudflare Worker...");
 
-        // Vi definerer et test-område (BBOX omkring Roskilde/København)
-        const bbox = "12.00,55.50,12.50,55.80";
+        // Vi bygger URL'en til Jupiter WFS via din proxy
+        const targetPath = "/geus_jupiter_wfs";
+        const params = `?token=${MY_TOKEN}&service=WFS&version=1.1.0&request=GetFeature&typeName=geus_jupiter_wfs:boring&outputFormat=json&maxFeatures=5&BBOX=12.5,55.6,12.6,55.7,EPSG:4326`;
         
-        // Vi bruger VERSION 1.1.0 og format_options=callback
-        // Dette tvinger serveren til at sende et svar, som browseren må læse som et script
-        const url = `https://calm-truth-fd59.ja40559646.workers.dev/ + 
-                    `token=${TOKEN}&` +
-                    `service=WFS&` +
-                    `version=1.1.0&` +
-                    `request=GetFeature&` +
-                    `typeName=geus_jupiter_wfs:boring&` +
-                    `outputFormat=json&` +
-                    `maxFeatures=5&` +
-                    `BBOX=${bbox},EPSG:4326&` +
-                    `format_options=callback:modtagData`;
+        const finalUrl = PROXY_URL + targetPath + params;
 
-        log("Sender kald via dynamisk script-tag...");
+        try {
+            const response = await fetch(finalUrl);
+            log("Worker svarede. HTTP Status: " + response.status);
 
-        // Fjern gammelt script hvis det findes
-        const old = document.getElementById('test-script');
-        if (old) old.remove();
-
-        const script = document.createElement('script');
-        script.id = 'test-script';
-        script.src = url;
-
-        // Hvis serveren helt nægter at svare (f.eks. 404 eller 401)
-        script.onerror = function() {
-            log("FEJL: Serveren afviste scriptet helt. Ingen forbindelse.", "error");
-        };
-
-        document.body.appendChild(script);
-    }
-
-    // Denne funktion køres af SDFI, når de svarer
-    window.modtagData = function(data) {
-        log("SVAR MODTAGET!", "success");
-        
-        if (data && data.features) {
-            log("Antal features fundet: " + data.features.length, "success");
-            if (data.features.length > 0) {
-                log("Første DGU-nr: " + data.features[0].properties.dgunr, "success");
+            if (!response.ok) {
+                const errText = await response.text();
+                log("SDFI afviste kaldet gennem proxyen: " + errText, "#e74c3c");
+                return;
             }
-        } else {
-            log("Modtog svar, men formatet var tomt eller forkert.", "error");
+
+            const data = await response.json();
+            if (data.features) {
+                log("FEJRING! Vi er igennem muren.", "#2ecc71");
+                log("Data modtaget: " + data.features.length + " boringer fundet i test-området.");
+                log("Første DGU-nr: " + data.features[0].properties.dgunr);
+            }
+        } catch (err) {
+            log("FEJL: Kunne ikke forbinde til din Worker. Tjek om den er 'Deployed'.", "#e74c3c");
+            log(err.message, "#e74c3c");
         }
-        
-        console.log("Rå data fra SDFI:", data);
-    };
+    }
 </script>
 
 </body>

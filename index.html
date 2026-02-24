@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Borings-Atlas 2026</title>
+    <title>Borings-Atlas 2026 | SDFI Fix</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --primary: #1a252f; --accent: #3498db; --success: #27ae60; }
@@ -50,7 +50,9 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+    // DIN TOKEN
     const TOKEN = "16482bf85f4018a2952adcbccccd8c84"; 
+
     let map, projectPin, searchCircle, boreholeLayer;
     let currentData = { lat: null, lng: null, radius: 1000 };
 
@@ -62,7 +64,7 @@
     const suggestionsEl = document.getElementById('suggestions');
     const statusBox = document.getElementById('statusBox');
 
-    // DAWA Autocomplete
+    // DAWA Autocomplete (Dette endpoint har CORS tilladelse)
     addrInput.addEventListener('input', async (e) => {
         const q = e.target.value;
         if (q.length < 3) { suggestionsEl.innerHTML = ''; return; }
@@ -107,6 +109,7 @@
         fetchBoreholes();
     }
 
+    // --- NY METODE: SDFI OGC API FEATURES ---
     async function fetchBoreholes() {
         if (!currentData.lat) return;
         boreholeLayer.clearLayers();
@@ -115,27 +118,33 @@
 
         const bbox = getBBox(currentData.lat, currentData.lng, currentData.radius);
         
-        // REKONSTRUERET URL: Vi bruger v1_0_0 for maksimal stabilitet med BBOX
-        const url = `https://api.dataforsyningen.dk/geus_jupiter_wfs?token=${TOKEN}&SERVICE=WFS&VERSION=1.0.0&REQUEST=GetFeature&TYPENAME=geus_jupiter_wfs:boring&OUTPUTFORMAT=application/json&BBOX=${bbox.minLng},${bbox.minLat},${bbox.maxLng},${bbox.maxLat}`;
+        // Vi skifter til SDFI's OGC API Features, som er designet til web (CORS-friendly)
+        // Her bruger vi BBOX i formatet: minLng,minLat,maxLng,maxLat
+        const bboxStr = `${bbox.minLng},${bbox.minLat},${bbox.maxLng},${bbox.maxLat}`;
+        const url = `https://api.dataforsyningen.dk/geus_jupiter_v1/items?token=${TOKEN}&limit=500&bbox=${bboxStr}`;
 
         try {
             const resp = await fetch(url);
-            if (!resp.ok) throw new Error("Kunne ikke kontakte SDFI");
+            if (!resp.ok) throw new Error("Fejl: " + resp.status);
             const data = await resp.json();
+            
+            // OGC API returnerer 'features' array
             const count = data.features ? data.features.length : 0;
 
             statusBox.className = "stats-box ready";
             statusBox.innerText = `Fundet: ${count} boringer`;
-            document.getElementById('nextStepBtn').disabled = count === 0;
+            document.getElementById('nextStepBtn').disabled = (count === 0);
 
             data.features.forEach(f => {
-                L.circleMarker([f.geometry.coordinates[1], f.geometry.coordinates[0]], {
+                const coords = f.geometry.coordinates; // [lng, lat]
+                L.circleMarker([coords[1], coords[0]], {
                     radius: 5, color: '#2c3e50', fillColor: '#34495e', fillOpacity: 0.8, weight: 1
-                }).bindTooltip(`DGU: ${f.properties.dgunr}`).addTo(boreholeLayer);
+                }).bindTooltip(`DGU: ${f.properties.dgunr || 'Ukendt'}`).addTo(boreholeLayer);
             });
         } catch (e) {
             statusBox.className = "stats-box error";
-            statusBox.innerText = "Data fejl - Tjek token";
+            statusBox.innerText = "SDFI blokerer stadig (CORS).";
+            console.error("Fetch fejl:", e);
         }
     }
 
